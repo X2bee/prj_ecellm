@@ -1,8 +1,5 @@
 ---
 base_model: answerdotai/ModernBERT-base
-model-index:
-- name: ModernBert_MLM_kotoken_v01
-  results: []
 ---
 
 # ModernBert_MLM_kotoken_v02
