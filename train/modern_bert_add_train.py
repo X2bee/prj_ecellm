@@ -9,13 +9,13 @@ if dist.is_initialized():
 api = HfApi()
 with open('./api_key/HGF_TOKEN.txt', 'r') as hgf:
     login(token=hgf.read())
-repo_name = "ModernBert_MLM_kotoken_v02"
+repo_name = "ModernBert_MLM_kotoken_v03"
 username = api.whoami()["name"]
 repo_id = f"x2bee/{repo_name}"
-dataset_repo = "x2bee/Korean_namuwiki_corpus"
+dataset_repo = "x2bee/Korean_wiki_corpus_all"
 api.create_repo(repo_id=repo_id, exist_ok=True)
 
-hgf_path = "x2bee/ModernBert_MLM_kotoken_v01"
+hgf_path = "x2bee/ModernBert_MLM_kotoken_v02"
 tokenizer = AutoTokenizer.from_pretrained(hgf_path, subfolder="last-checkpoint")
 model = AutoModelForMaskedLM.from_pretrained(hgf_path, subfolder="last-checkpoint")
 model.to('cuda')
@@ -62,7 +62,7 @@ training_args = TrainingArguments(
     weight_decay=0.01,
     logging_dir="/workspace/result/logs",
     logging_steps=250,
-    warmup_steps=10000,
+    warmup_steps=15000,
     gradient_accumulation_steps=4,
     load_best_model_at_end=True,
     optim="adamw_torch",
@@ -72,7 +72,7 @@ training_args = TrainingArguments(
     dataloader_num_workers=(os.cpu_count() // 2),
     push_to_hub=True,
     hub_model_id=repo_id,
-    hub_strategy="checkpoint",
+    hub_strategy="every_save",
 )
 
 # Trainer 객체 생성
@@ -87,3 +87,4 @@ trainer = Trainer(
 
 # 학습 시작
 trainer.train()
+trainer.push_to_hub()

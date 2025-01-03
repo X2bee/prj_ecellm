@@ -5,8 +5,6 @@ from transformers import AutoTokenizer, AutoModelForMaskedLM, DataCollatorForLan
 from huggingface_hub import HfApi, login
 
 api = HfApi()
-with open('./api_key/HGF_TOKEN.txt', 'r') as hgf:
-    login(token=hgf.read())
 repo_name = "test_ModernBert_MLM"
 username = api.whoami()["name"]
 repo_id = f"x2bee/{repo_name}"
