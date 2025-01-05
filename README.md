@@ -5,109 +5,50 @@ base_model: answerdotai/ModernBERT-base
 # ModernBert_MLM_kotoken_v02
 This model is a fine-tuned version of [answerdotai/ModernBERT-base](https://huggingface.co/answerdotai/ModernBERT-base) on [x2bee/Korean_wiki_corpus](https://huggingface.co/datasets/x2bee/Korean_wiki_corpus) and [x2bee/Korean_namuwiki_corpus](https://huggingface.co/datasets/x2bee/Korean_namuwiki_corpus). <br>
 It achieves the following results on the evaluation set:
-- Loss: 1.7133122
+- Loss: 1.5698
 
 ### Example Use.
+
+```bash
+git clone https://github.com/X2bee/prj_ecellm.git
+```
+
 ```python
-from transformers import AutoTokenizer, AutoModelForMaskedLM
-from huggingface_hub import HfApi, login
-with open('./api_key/HGF_TOKEN.txt', 'r') as hgf:
-    login(token=hgf.read())
-api = HfApi()
+import os
+os.chdir("/workspace")
+from models.bert_mlm import ModernBertMLM
 
-model_id = "x2bee/ModernBert_MLM_kotoken_v02"
-tokenizer = AutoTokenizer.from_pretrained(model_id, subfolder="last-checkpoint")
-model = AutoModelForMaskedLM.from_pretrained(model_id, subfolder="last-checkpoint").to("cuda")
+test_model = ModernBertMLM(model_id="x2bee/ModernBert_MLM_kotoken_v03")
 
-def modern_bert_convert_with_multiple_masks(text: str, top_k: int = 1, select_method:str = "Logit") -> str:
-    """
-    문장에 여러 개의 [MASK] 토큰이 있을 경우, 순차적으로 변환하여 최종 문장을 완성하는 함수.
-
-    Args:
-        text (str): [MASK] 토큰이 포함된 입력 문장.
-        top_k (int): 각 [MASK] 위치에서 상위 k개의 예측값 중 하나를 선택 (기본값은 1).
-        select_method (str): "Logit", "Random", "Best" 중 하나를 입력. Logit은 Logit에 따라 확률적으로 선택, Random은 완전 랜덤. Best는 가장 확률이 높은 것을 선택함.
-
-    Returns:
-        str: 모든 [MASK] 토큰이 예측된 값으로 치환된 문장.
-    """
-    if "[MASK]" not in text:
-        raise ValueError("MLM Model should include '[MASK]' in the sentence")
-
-    while "[MASK]" in text:
-        # 입력 문장을 토크나이저로 처리
-        inputs = tokenizer(text, return_tensors="pt").to("cuda")
-        outputs = model(**inputs)
-
-        # 모든 [MASK] 토큰의 위치를 확인
-        input_ids = inputs["input_ids"][0].tolist()
-        mask_indices = [i for i, token_id in enumerate(input_ids) if token_id == tokenizer.mask_token_id]
-
-        # 가장 앞에 있는 [MASK] 위치 선택
-        current_mask_index = mask_indices[0]
-
-        # 해당 [MASK] 위치의 로짓 가져오기
-        logits = outputs.logits[0, current_mask_index]
-
-        # 상위 top_k 예측값 가져오기
-        top_k_tokens = logits.topk(top_k).indices.tolist()
-        top_k_logits, top_k_indices = logits.topk(top_k)
-        
-        if select_method == "Logit":
-            # softmax를 사용하여 확률로 변환
-            probabilities = torch.softmax(top_k_logits, dim=0).tolist()
-            # 확률 기반으로 랜덤하게 선택
-            predicted_token_id = random.choices(top_k_indices.tolist(), weights=probabilities, k=1)[0]
-            predicted_token = tokenizer.decode([predicted_token_id]).strip()
-            
-        elif select_method == "Random":
-            # 랜덤하게 선택
-            predicted_token_id = random.choice(top_k_tokens)
-            predicted_token = tokenizer.decode([predicted_token_id]).strip()
-            
-        elif select_method == "Best":
-            # 가장 확률이 높은 예측 토큰 선택
-            predicted_token_id = top_k_tokens[0]
-            predicted_token = tokenizer.decode([predicted_token_id]).strip()
-            
-        else:
-            raise ValueError("select_method should be one of ['Logit', 'Random', 'Best']")
-
-        # [MASK]를 예측된 토큰으로 대체
-        text = text.replace("[MASK]", predicted_token, 1)
-
-        print(f"Predicted: {predicted_token} | Current text: {text}")
-
-    return text
-
-text = "30일 전남 무안[MASK]공항 활주로에 전날 발생한 제주항공 [MASK] 당시 기체가 [MASK]착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 [MASK]과 승무원 181명 중 179명이 숨지고 [MASK]는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다."
-result = modern_bert_convert_with_multiple_masks(text, top_k=3, select_method="Logit")
+text = "30일 전남 무안국제[MASK] 활주로에 전날 발생한 제주항공 [MASK] 당시 기체가 [MASK]착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 [MASK]과 승무원 181명 중 179명이 숨지고 [MASK]는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다."
+result = test_model.modern_bert_convert_with_multiple_masks(text, top_k=5)
+result
 ```
 
 ### Output
 ```
-Predicted: 국제 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 [MASK] 당시 기체가 [MASK]착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 [MASK]과 승무원 181명 중 179명이 숨지고 [MASK]는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
+Predicted: 공항 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 [MASK] 당시 기체가 [MASK]착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 [MASK]과 승무원 181명 중 179명이 숨지고 [MASK]는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
 Predicted: 사고 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 [MASK]착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 [MASK]과 승무원 181명 중 179명이 숨지고 [MASK]는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
 Predicted: 비상 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 [MASK]과 승무원 181명 중 179명이 숨지고 [MASK]는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
 Predicted: 승객 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 [MASK]는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
 Predicted: 잔해 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 [MASK]됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 파괴 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 사고 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 발생 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 발생 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 의혹 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 발생 원인 등에 대해 다양한 의혹이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 여객기 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 발생 원인 등에 대해 다양한 의혹이 제기되고 있는 가운데 여객기에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 안전장치 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 발생 원인 등에 대해 다양한 의혹이 제기되고 있는 가운데 여객기에 설치된 안전장치(착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 사고 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 발생 원인 등에 대해 다양한 의혹이 제기되고 있는 가운데 여객기에 설치된 안전장치(착륙 유도 안전시설)가 사고를 키웠다는 [MASK]이 나오고 있다.
-Predicted: 의견 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 발생 원인 등에 대해 다양한 의혹이 제기되고 있는 가운데 여객기에 설치된 안전장치(착륙 유도 안전시설)가 사고를 키웠다는 의견이 나오고 있다.
+Predicted: 훼손 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. [MASK] 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
+Predicted: 사고 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 [MASK] 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
+Predicted: 발생 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 발생 원인 등에 대해 다양한 [MASK]이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
+Predicted: 주장 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 발생 원인 등에 대해 다양한 주장이 제기되고 있는 가운데 [MASK]에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
+Predicted: 내부 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 발생 원인 등에 대해 다양한 주장이 제기되고 있는 가운데 내부에 설치된 [MASK](착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
+Predicted: ESP | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 발생 원인 등에 대해 다양한 주장이 제기되고 있는 가운데 내부에 설치된 ESP(착륙 유도 안전시설)가 [MASK]를 키웠다는 [MASK]이 나오고 있다.
+Predicted: 사고 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 발생 원인 등에 대해 다양한 주장이 제기되고 있는 가운데 내부에 설치된 ESP(착륙 유도 안전시설)가 사고를 키웠다는 [MASK]이 나오고 있다.
+Predicted: 주장 | Current text: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 발생 원인 등에 대해 다양한 주장이 제기되고 있는 가운데 내부에 설치된 ESP(착륙 유도 안전시설)가 사고를 키웠다는 주장이 나오고 있다.
 
 ```
 
 ### Compare with Real Value
 ```
 Answer: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 대참사 당시 기체가 동체착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 항공기는 형체를 알아볼 수 없이 파손됐다. 피해 규모와 사고 원인 등에 대해 다양한 의문점이 제기되고 있는 가운데 활주로에 설치된 로컬라이저(착륙 유도 안전시설)가 피해를 키웠다는 지적이 나오고 있다.
-Output: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 파괴됐다. 사고 규모와 발생 원인 등에 대해 다양한 의혹이 제기되고 있는 가운데 여객기에 설치된 안전장치(착륙 유도 안전시설)가 사고를 키웠다는 의견이 나오고 있다.
-```
+Output: 30일 전남 무안국제공항 활주로에 전날 발생한 제주항공 사고 당시 기체가 비상착륙하면서 강한 마찰로 생긴 흔적이 남아 있다. 이 참사로 승객과 승무원 181명 중 179명이 숨지고 잔해는 형체를 알아볼 수 없이 훼손됐다. 사고 규모와 발생 원인 등에 대해 다양한 주장이 제기되고 있는 가운데 내부에 설치된 ESP(착륙 유도 안전시설)가 사고를 키웠다는 주장이 나오고 있다.
 
+```
 
 # plateer_classifier_ModernBERT_v01
 This model is a fine-tuned version of [x2bee/ModernBert_MLM_kotoken_v01](https://huggingface.co/x2bee/ModernBert_MLM_kotoken_v01) on [x2bee/plateer_category_data](https://huggingface.co/datasets/x2bee/plateer_category_data). <br>
@@ -116,60 +57,9 @@ It achieves the following results on the evaluation set:
 
 ### Example Use.
 ```python
-import joblib;
-from huggingface_hub import hf_hub_download;
-from transformers import AutoTokenizer, TextClassificationPipeline, AutoModelForSequenceClassification;
-from huggingface_hub import HfApi, login
-with open('./api_key/HGF_TOKEN.txt', 'r') as hgf:
-    login(token=hgf.read())
-api = HfApi()
-repo_id = "x2bee/plateer_classifier_ModernBERT_v01"
-data_id = "x2bee/plateer_category_data"
-
-# Load Config, Tokenizer, Label_Encoder
-tokenizer = AutoTokenizer.from_pretrained(repo_id, subfolder="last-checkpoint")
-label_encoder_file = hf_hub_download(repo_id=data_id, repo_type="dataset", filename="label_encoder.joblib")
-label_encoder = joblib.load(label_encoder_file)
-
-# Load Model
-model = AutoModelForSequenceClassification.from_pretrained(repo_id, subfolder="last-checkpoint")
-
-import torch
-class TextClassificationPipeline(TextClassificationPipeline):
-    def __call__(self, inputs, top_k=5, **kwargs):
-        inputs = self.tokenizer(inputs, return_tensors="pt", truncation=True, padding=True, max_length=512, **kwargs)
-        inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
-        
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-        
-        probs = torch.nn.functional.softmax(outputs.logits, dim=-1)
-        scores, indices = torch.topk(probs, top_k, dim=-1)
-        
-        results = []
-        for batch_idx in range(indices.shape[0]):
-            batch_results = []
-            for score, idx in zip(scores[batch_idx], indices[batch_idx]):
-                temp_list = []
-                label = self.model.config.id2label[idx.item()]
-                label = int(label.split("_")[1])
-                temp_list.append(label)
-                predicted_class = label_encoder.inverse_transform(temp_list)[0]
-                            
-                batch_results.append({
-                    "label": label,
-                    "label_decode": predicted_class,
-                    "score": score.item(),
-                })
-            results.append(batch_results)
-        
-        return results
-
-classifier_model = TextClassificationPipeline(tokenizer=tokenizer, model=model)
-
-def plateer_classifier(text, top_k=3):
-    result = classifier_model(text, top_k=top_k)
-    return result
+import os
+os.chdir("/workspace")
+from models.bert_cls import plateer_classifier;
 
 result = plateer_classifier("겨울 등산에서 사용할 옷")[0]
 print(result)
@@ -179,5 +69,210 @@ print(result)
 {'label': 2, 'label_decode': '기능성의류', 'score': 0.9214227795600891}
 {'label': 8, 'label_decode': '스포츠', 'score': 0.07054771482944489}
 {'label': 15, 'label_decode': '패션/의류/잡화', 'score': 0.0036312134470790625}
+```
+
+# Fine-Tune Example Code (Sentence-Transformer)
+
+```python
+import os
+from datasets import load_dataset
+from transformers import AutoTokenizer
+from sentence_transformers import (
+    SentenceTransformer,
+    SentenceTransformerTrainer,
+    SentenceTransformerTrainingArguments,
+)
+from sentence_transformers.evaluation import TripletEvaluator, EmbeddingSimilarityEvaluator
+from sentence_transformers.losses import CachedMultipleNegativesRankingLoss, CosineSimilarityLoss
+from sentence_transformers.training_args import BatchSamplers
+from huggingface_hub import HfApi, login
+
+api = HfApi()
+with open('./api_key/HGF_TOKEN.txt', 'r') as hgf:
+    login(token=hgf.read())
+repo_name = "ModernBert_STS_sentence_bert_v01"
+username = api.whoami()["name"]
+repo_id = f"x2bee/{repo_name}"
+dataset_repo = "x2bee/Korean_STS_all"
+api.create_repo(repo_id=repo_id, exist_ok=True)
+
+# 기존 MLM 방식으로 Korean Data를 학습한 모델을 Load.
+# PreTraining된 Model을 로드하여 SentenceTransformer Class로 불러옴.
+hgf_path = "x2bee/ModernBert_MLM_kotoken_v03"
+model = SentenceTransformer(hgf_path, device="cuda")
+
+# Data의 경우 STS 데이터를 사용. STS는 Sentence, Pair, Label(Score)로 된 데이터로, 두 문장의 유사도를 점수로 표현한 데이터임.
+# 이러한 데이터에 맞추어 Loss Function을 제대로 지정해 줄 필요가 있음.
+dataset = load_dataset(dataset_repo)
+dataset = dataset["train"]
+
+# CosineSimilarityLoss Class가 0~1로 된 Label을 요구하기 때문에 변경.
+# 0~5점으로 표현된 데이터라, 단순하게 5로 나눠버림.
+def normalize_label(example):
+    example["label"] = (example["label"] / 5)
+    return example
+dataset = dataset.map(normalize_label)
+
+# 데이터 가져와서 split.
+dataset_dict = dataset.train_test_split(test_size=0.1, seed=42)
+train_dataset = dataset_dict["train"]
+eval_dataset = dataset_dict["test"]
+
+# Loss 정의의
+loss = CosineSimilarityLoss(model)
+
+# Training Argument. 다른 것들과 비슷하게.
+args = SentenceTransformerTrainingArguments(
+        output_dir=f"/workspace/result/{repo_name}",
+        num_train_epochs=3,
+        per_device_train_batch_size=128,
+        per_device_eval_batch_size=128,
+        gradient_accumulation_steps=4,
+        load_best_model_at_end=True,
+        warmup_ratio=0.1,
+        batch_sampler=BatchSamplers.NO_DUPLICATES,
+        learning_rate=2e-5,
+        save_strategy="steps",
+        save_steps=1000,
+        eval_strategy="steps",
+        eval_steps=1000,
+        save_total_limit=2,
+        logging_steps=500,
+        push_to_hub=True,
+        hub_model_id=repo_id,
+        hub_strategy="every_save",
+        do_train=True,
+        do_eval=True,
+    )
+
+# 주어진 Function에 맞추어 Evaluator 설정.
+dev_evaluator = EmbeddingSimilarityEvaluator(
+    sentences1=eval_dataset["sentence"],
+    sentences2=eval_dataset["pair"],
+    scores=eval_dataset["label"],
+    name="sts_dev",
+)
+
+# 시작 전 검증해보기/
+dev_evaluator(model)
+
+# Trainer 설정.
+trainer = SentenceTransformerTrainer(
+    model=model,
+    args=args,
+    train_dataset=train_dataset,
+    eval_dataset=eval_dataset,
+    loss=loss,
+    evaluator=dev_evaluator,
+)
+
+# 학습.
+trainer.train()
+
+dev_evaluator(model)
+
+trainer.push_to_hub()
+```
+
+
+# Fine-Tune Example Code (Classification)
+```python
+import os
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, DataCollatorWithPadding, Trainer, TrainingArguments
+from huggingface_hub import HfApi, login
+import torch.distributed as dist
+
+if dist.is_initialized():
+    dist.destroy_process_group()
+    
+api = HfApi()
+with open('./api_key/HGF_TOKEN.txt', 'r') as hgf:
+    login(token=hgf.read())
+repo_name = "plateer_classifier_ModernBERT_v02"
+username = api.whoami()["name"]
+repo_id = f"x2bee/{repo_name}"
+api.create_repo(repo_id=repo_id, exist_ok=True)
+
+# Label의 갯수에 따라 AutoModel로 Load.
+model_id = "x2bee/ModernBert_MLM_kotoken_v03"
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForSequenceClassification.from_pretrained(
+    model_id, 
+    num_labels=17)
+model.to("cuda")
+
+# 주어진 Dataset에 따라 설정.
+# 여기서는 총 500만개만 사용.
+def is_valid_str(example):
+    return isinstance(example['goods_nm'], str)
+selected_columns = ['goods_nm', 'label']
+dataset_name = "x2bee/plateer_category_data"
+dataset = load_dataset(dataset_name, data_dir="data")
+dataset = dataset['train'].select_columns(selected_columns)
+dataset = dataset.shuffle().select(range(5000000))
+dataset = dataset.filter(is_valid_str)
+
+test_size = 0.1
+test_split_seed = 42
+
+split_dataset = dataset.train_test_split(test_size=test_size, seed=test_split_seed)
+train_dataset = split_dataset["train"]
+test_dataset = split_dataset["test"]
+
+# 학습 전 주어진 Tokenizer로 Input을 토큰화.
+def encode(examples):
+    return tokenizer(examples['goods_nm'], padding="max_length", truncation=True, max_length=512)
+
+# 텍스트 토큰 작업.
+tokenized_train_dataset = train_dataset.map(encode, batched=True, num_proc=os.cpu_count())
+tokenized_test_dataset = test_dataset.map(encode, batched=True, num_proc=os.cpu_count())
+
+# DataCollator 생성 (토크나이저와 모델에 맞는 마스크 생성)
+data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+
+# Trainer 설정
+training_args = TrainingArguments(
+    output_dir="/workspace/result/modern_bert",
+    overwrite_output_dir=True,
+    ddp_find_unused_parameters=True,
+    save_strategy="steps",
+    save_steps=5000,
+    eval_strategy="steps",
+    eval_steps=5000,
+    learning_rate=2e-4,
+    per_device_train_batch_size=32,
+    per_device_eval_batch_size=32,
+    num_train_epochs=3,
+    weight_decay=0.01,
+    logging_dir="/workspace/result/logs",
+    logging_steps=250,
+    warmup_steps=10000,
+    gradient_accumulation_steps=4,
+    load_best_model_at_end=True,
+    optim="adamw_torch",
+    report_to="none",
+    do_train=True,
+    do_eval=True,
+    dataloader_num_workers=(os.cpu_count() // 2),
+    push_to_hub=True,
+    hub_model_id=repo_id,
+    hub_strategy="checkpoint",
+)
+
+# Trainer 객체 생성
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    data_collator=data_collator,
+    processing_class=tokenizer,
+    train_dataset=tokenized_train_dataset,
+    eval_dataset=tokenized_test_dataset,
+)
+
+# 학습 시작
+trainer.train()
+api.create_repo(repo_id=repo_id, exist_ok=True)
+trainer.push_to_hub()
 ```
 

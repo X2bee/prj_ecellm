@@ -28,7 +28,7 @@ dataset = dataset["train"]
 
 # label 값을 0~1로 정규화
 def normalize_label(example):
-    example["label"] = example["label"]
+    example["label"] = (example["label"] / 5)
     return example
 dataset = dataset.map(normalize_label)
 
