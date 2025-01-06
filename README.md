@@ -2,7 +2,7 @@
 base_model: answerdotai/ModernBERT-base
 ---
 
-# ModernBert_MLM_kotoken_v02
+# ModernBert_MLM_kotoken_v03
 This model is a fine-tuned version of [answerdotai/ModernBERT-base](https://huggingface.co/answerdotai/ModernBERT-base) on [x2bee/Korean_wiki_corpus](https://huggingface.co/datasets/x2bee/Korean_wiki_corpus) and [x2bee/Korean_namuwiki_corpus](https://huggingface.co/datasets/x2bee/Korean_namuwiki_corpus). <br>
 It achieves the following results on the evaluation set:
 - Loss: 1.5698
