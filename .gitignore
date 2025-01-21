@@ -1,0 +1,8 @@
+/data
+/api_key
+/ModernBERT-base
+/Korpora
+/result
+/train/**/run_train.sh
+/train/modern_bert_add_train.py
+/train/kmb_simcse_hgf/push_to_hub.ipynb

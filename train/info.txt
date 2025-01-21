@@ -1,0 +1,5 @@
+data는 어떤 방식으로든 준비되어 Model의 Forward 함수로 입력됨.
+이렇게 입력되기 전, Trainer의 Collator를 통해 입력 데이터를 변환하여 batch로 제공하는 것으로 보임.
+
+Trainer는 
+Model의 Forward 함수로부터 loss와 logits을 반환받기를 기대함.
